@@ -1,0 +1,126 @@
+---
+title: "Keras in Python"
+author: "Shweta A M Hatote"
+format: revealjs
+editor: source
+toc: true
+toc-depth: 1
+slide-number: true
+smaller: false
+scrollable: true 
+execute:
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Load Required Libraries
+
+```{python}
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, SimpleRNN, LSTM
+from tensorflow.keras.optimizers import SGD, Adam
+import matplotlib.pyplot as plt
+```
+
+# Set random seed for reproducibility
+
+```{python}
+np.random.seed(0)
+tf.random.set_seed(0)
+```
+
+# Load dataset
+
+```{python}
+file_path = "C:\\Study\\Time Series\\HW\\HW4\\ICSA.csv"
+dataframe = pd.read_csv(file_path)
+data = dataframe['ICSA'].values.astype(float)
+```
+
+- Normalize the dataset
+
+```{python}
+scaler = MinMaxScaler(feature_range=(0, 1))
+data = scaler.fit_transform(data.reshape(-1, 1))
+```
+
+# Convert an array of values into a dataset matrix
+
+```{python}
+def create_dataset(dataset, look_back=53):
+    dataX, dataY = [], []
+    for i in range(len(dataset)-look_back-1):
+        a = dataset[i:(i+look_back), 0]
+        dataX.append(a)
+        dataY.append(dataset[i + look_back, 0])
+    return np.array(dataX), np.array(dataY)
+```
+
+# Prepare the data
+
+```{python}
+look_back = 53
+dataX, dataY = create_dataset(data, look_back)
+```
+
+- Reshape input to be [samples, time steps, features]
+
+```{python}
+dataX = np.reshape(dataX, (dataX.shape[0], dataX.shape[1], 1))
+```
+
+# Create and fit the LSTM network
+
+```{python}
+model = Sequential()
+model.add(LSTM(4, input_shape=(look_back, 1)))
+model.add(Dense(1))
+model.compile(loss='mean_squared_error', optimizer='adam')
+model.fit(dataX, dataY, epochs=5, batch_size=1, verbose=0)
+```
+
+
+# Make predictions & Invert them to get the original value
+
+```{python}
+dataPredict = model.predict(dataX, verbose=0)
+
+dataPredict = scaler.inverse_transform(dataPredict)
+dataY_original = scaler.inverse_transform([dataY])
+```
+
+- Calculate root mean squared error
+
+```{python}
+score = np.sqrt(np.mean((dataPredict[:,0] - dataY_original[0])**2))
+print(f'Score: {score:.2f} RMSE')
+```
+
+# Plot baseline and predictions
+
+##
+
+```{python}
+plt.figure(figsize=(10,6))
+plt.plot(scaler.inverse_transform(data))
+plt.plot(np.arange(look_back, len(dataPredict)+look_back), dataPredict.flatten(), label='Prediction')
+plt.title("Initial Claims")
+plt.ylabel("Value")
+plt.xlabel("Years")
+plt.legend()
+plt.show()
+```
+
+# Forecast the next value
+
+```{python}
+next_input = data[-look_back:].reshape(1, look_back, 1)
+next_prediction = model.predict(next_input, verbose=0)
+next_prediction_inverted = scaler.inverse_transform(next_prediction)
+print(f'Forecast for next time step: {next_prediction_inverted[0][0]:.2f}')
+```
